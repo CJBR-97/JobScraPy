@@ -1,15 +1,18 @@
 import re
 import time
 import pandas as pd
-import traceback
-from pprint import pprint
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.firefox.options import Options
 
-#TODO finish attributations for any code components from Stack or AI
+# Some acknowledgements:
+# The first example of using Selenium to extract hrefs from a webpage was 13 lines (including comments) of code obtained via the Bing-Copilot AI interface
+# Thanks to https://www.digitalocean.com/community/tutorials/python-string-encode-decode for information on encoding-decoding web scaped data
+# Ditto for https://realpython.com/python-encodings-guide/
+# Thanks to https://www.selenium.dev/documentation/webdriver/interactions/windows/ for a better understanding of webdriver window operations
+# And as always, thanks to RegexOne for their excellent tutorials
 
 # Fish text out of webelement objects using regX and customizable encoding
 def text_fisher(webList, regX, encoding = "cp1252", decoding = "utf-8"):
@@ -51,7 +54,8 @@ def downer(browse, retrieveClasses = [None], pageLenClass = "title", pageTag = "
     for c in retrieveClasses:
         returnWebElem[c] = (browse.find_elements(By.CLASS_NAME, c))
     return returnWebElem
-  
+
+# Adapted from https://stackoverflow.com/questions/46753393/how-to-run-headless-firefox-with-selenium-in-python
 # Initialize headless firefox webdriver
 def headless_fox():
     fox_options = Options()
