@@ -62,7 +62,7 @@ def headless_fox():
 
 # Use Regex to match the last n words before a target word
 def get_last_n_words(text, word, n = 5):
-    pattern = r"(?:\S*\s*){1,4}" + r"{}".format(word)
+    pattern = r"(?:\S*\s*){1,4}" + re.escape(word)
     matches = re.search(pattern, text, re.M)
     if not matches:
         print("No matches found")
@@ -73,6 +73,15 @@ def get_last_n_words(text, word, n = 5):
 def edu_prereqs(text):
     pattern = r"(?:[Dd]egree|[Mm]aster'?s?|[Bb]achelor'?s?|[Ss]econdary [Ss]chool|(?:[Pp]ost)?-?[Dd]octor(?:al)?(?:ate)?|[Pp]ost-?[Dd]oc|[Pp]ost-[Ss]econdary|[Mm]\.?[Ss][Cc]|[Bb]\.?[Ss][Cc]|(?:[Pp]ost|[Uu]nder)?-?grad(?:uate)?|[Pp][Hh]\.?[Dd])"
     matches = re.findall(pattern, text, re.M)
+    if not matches:
+        return None
+    return matches
+
+# Remove extraneous material from job description
+# Note: Can nuke large sections of text, so be sure to check if any important data has been removed before proceeding
+def filter_extras(sift_words):
+    pattern = r".*?(?:" + "|".join(sift_words) + r").*?\."
+    matches = re.sub(pattern, '', text, flags = re.M | re.I)
     if not matches:
         return None
     return matches
