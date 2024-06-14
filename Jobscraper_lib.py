@@ -98,12 +98,14 @@ def turn_page(browse, link, page):
 
 def downer(browse, retrieveClasses = [None], pageLenClass = "title", pageTag = "body", no_of_pagedowns = 100, fine = False):
     
-    pageElem = browse.find_element(By.TAG_NAME, pageTag)
     if fine:
-        numPresent = len(browse.find_elements(By.CSS_SELECTOR, pageLenClass))
+        selSelect = By.CSS_SELECTOR
     else:
-        numPresent = len(browse.find_elements(By.CLASS_NAME, pageLenClass))
+        selSelect = By.CLASS_NAME
 
+    pageElem = browse.find_element(By.TAG_NAME, pageTag)
+    numPresent = len(browse.find_elements(selSelect, pageLenClass))
+    
     print("Current len is {}".format(numPresent))
     pageElem.send_keys(Keys.PAGE_DOWN)
     time.sleep(0.5)
@@ -113,10 +115,12 @@ def downer(browse, retrieveClasses = [None], pageLenClass = "title", pageTag = "
         pageElem.send_keys(Keys.PAGE_DOWN)
         time.sleep(1)
         no_of_pagedowns-=1
+        
         if fine:
-            updateElems = len(browse.find_elements(By.CSS_SELECTOR, pageLenClass))
+            selSelect = By.CSS_SELECTOR
         else:
-            updateElems = len(browse.find_elements(By.CLASS_NAME, pageLenClass))
+            selSelect = By.CLASS_NAME
+        updateElems = len(browse.find_elements(selSelect, pageLenClass))
 
         if no_of_pagedowns%10 == 0:
             if updateElems > numPresent:
@@ -131,14 +135,16 @@ def downer(browse, retrieveClasses = [None], pageLenClass = "title", pageTag = "
     for c in retrieveClasses:
         if type(c) is list: 
             if fine:
-                returnWebElem[c[0]] = (browse.find_elements(By.CSS_SELECTOR, c[0]))
+                selSelect = By.CSS_SELECTOR
             else:
-                returnWebElem[c[0]] = (browse.find_elements(By.CLASS_NAME, c[0]))
+                selSelect = By.CLASS_NAME
+            returnWebElem[c[0]] = (browse.find_elements(selSelect, c[0]))
         else:
             if fine:
-                returnWebElem[c] = (browse.find_elements(By.CSS_SELECTOR, c))
+                selSelect = By.CSS_SELECTOR
             else:
-                returnWebElem[c] = (browse.find_elements(By.CLASS_NAME, c))
+                selSelect = By.CLASS_NAME
+            returnWebElem[c] = browse.find_elements(selSelect, c)
 
     return returnWebElem
 
