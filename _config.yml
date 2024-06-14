@@ -4,5 +4,5 @@ remote_theme: carlosperate/jekyll-theme-rtd
 
 # Theme settings:
 site_author: C. Reimer
-repo_url: "https://github.com/carlosperate/jekyll-theme-rtd"
+repo_url: "https://github.com/CJBR-97/JobScraPy"
 search_enabled: true
