@@ -1,5 +1,4 @@
-# JobScraPy
-Python repo for increasing job application efficiency
+Welcome to the JobScraPy documentation site, hosted by Github Pages. This site is a work-in-progress, I hope you enjoy it nonetheless.
 
 To-do:
 * Add documentation for core functions here
