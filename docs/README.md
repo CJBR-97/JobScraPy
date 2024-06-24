@@ -8,4 +8,4 @@ To-do:
 * Optimize for an official release & PEP syntax
 * ~~Allow for user customization of dicts and fine-tuned input on the populate() function~~
 
-P.S. There are several projects by different authors using variations of the name JobScraPy. This one just happens to be mine :)  Nothing new under the sun, as they say.
+P.S. There are several distinct projects by different authors using variations of the name JobScraPy. This one just happens to be mine. Nothing new under the sun, as they say.
