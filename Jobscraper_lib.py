@@ -16,22 +16,71 @@ from selenium.webdriver.firefox.options import Options
 # And as always, thanks to RegexOne for their excellent tutorials
 
 
-# A class that simply stores variables for the params of various companies/organizations
-Class companySetups:
+# Filters content from scraping into appropriate final format
+def populate(jobDict, jobBoard, retrieveList):
+    populatedDict = {k : [] for k in retrieveList}
+    for k in retrieveList:
+        populatedDict[k] = jobDict["populate"][k](k, jobBoard, jobDict)
+return populatedDict
+
+
+# Function that uses regex to fish out details from page elements
+def r_fisher(webList, regX, encoding = "cp1252", decoding = "utf-8"):
+    return[re.search(regX, w.text.encode(encoding,"ignore").decode(decoding,"ignore").replace(u"\u2013", '-').replace(u"\u00E9", 'e'), re.M).group(1) if w is not None else None for w in webList]
+
+
+# Uses regex fisher to filter each item from a list
+def p_fisher(attrib, jobBoard, jobDict):
+    return [j for j in r_fisher(jobBoard[jobDict[attrib]], jobDict[attrib][1]) if j != '']
+
+
+# Handles web designs that double-up their entries
+def p_doubles(attrib, jobBoard, jobDict):
+    return [j.get_attribute(attrib) for j in jobBoard[jobDict[attrib]][::2]]
+
+
+# Replaces some common problem characters in web text elements
+def p_replace(attrib, jobBoard, jobDict):
+    return [j.text.encode("cp1252","ignore").decode("utf-8","ignore").replace(u"\u2013", '-').replace(u"\u00E9", 'e') for j in jobBoard[jobDict[attrib]] if j.text != '' and j.text.lower() != attrib]
+
+
+# Basic extraction of details without many significant post-processing
+def p_basic(attrib, jobBoard, jobDict):
+    return [j.get_attribute(attrib) for j in jobBoard[jobDict[attrib]]]
+
+
+class Company_Settings():
+    Kinectrics = {
+        "company":"Kinectrics",
+        "home":"https://careers.kinectrics.com/search/?createNewAlert=false&q=&locationsearch=",
+        "title":"jobTitle-link",
+        "location":"jobLocation",
+        "pg_down": "jobTitle-link",
+        "href":"jobTitle-link",
+        "paginated": True,
+        "pageClass":"pagination",
+        "populate": {'href': p_doubles, 'title': p_replace, 'location' : p_replace},
+        "inner": None,
+        "filter": False,
+        "notes": ["No internal HTML/CSS class structure to posting pages, full text extraction & post-processing recommended", "Formatting between postings varies, expect more cleanup work in results from this site"]
+    }
+
     CaNuLabs = {
         "company": "CNL",
         "home": "https://tre.tbe.taleo.net/tre01/ats/careers/v2/searchResults?org=CNLLTD&cws=37",
         "title": "viewJobLink",
         "work_type": "workplaceTypes", 
         "work_commit": "commitment",
-        "work_loc": ["oracletaleocwsv2-accordion-head-info", r'^[^\n]+\n([\)\(\.\w \-&]+)'],
+        "location": ["oracletaleocwsv2-accordion-head-info", r'^[^\n]+\n([\)\(\.\w \-&]+)'],
         "pg_down": "viewJobLink",
         "href": "viewJobLink",
         "paginated": False,
+        "populate": {'href': p_basic, 'title': p_replace, 'location' : p_fisher},
         "inner": {"Description" : "cwsJobDescription", "ID": ["well.oracletaleocwsv2-job-description", r'^[Pp]osition [Nn]umbers?\s+(\d+).*\n'], "Dept" : r'^[Dd]epartments?\:\s*(.*)\n'},
         "filter": False,
         "notes": ["No pagination, only scrolldown loads new listings on this site", "Formatting between postings varies, expect more cleanup work in results from this site"]
     }
+
     
     Kepler = {
         "company": "Kepler",
@@ -39,31 +88,30 @@ Class companySetups:
         "title": ["posting-title", r"^(.*)\n"],
         "work_type": "workplaceTypes", 
         "work_commit": "commitment",
-        "work_loc": "location",
+        "location": "location",
         "pg_down": "posting-apply",
         "href": "posting-title",
         "paginated": False,
+        "populate": {'href': p_basic, 'title': p_fisher, 'location' : p_replace},
         "inner": {"Description" : "", "ID" : "", "Education" : "", "XP" : ""},
         "filter": False
     }
+
     
     OnPowGen = {
         "company": "OPG",
         "home": "https://jobs.opg.com/search/?q=&sortColumn=referencedate&sortDirection=desc&searchby=location&d=15",
         "title": ["a.jobTitle-link", r"(.*)"],
-        "work_loc": "span.jobLocation",
+        "location": "span.jobLocation",
         "pg_down": "span.jobFacility",
         "href": "a.jobTitle-link",
         "paginated": True,
         "pageClass": "pagination",
-        "inner": {"Description" : "", "ID" : "", "Education" : "", "XP" : ""},
+        "populate": {'href': p_doubles, 'title': p_fisher, 'location' : p_replace},
+        "inner": {"Description" : "", "ID" : [By.CSS_SELECTOR, "[data-careersite-propertyid='facility']"], "Education" : "", "XP" : ""},
         "filter": "fine",
         "notes": ["Filtering on 'fine' mode is required", "Location and job href duplication are common with the OPG website through this program, partly due to the site's mobile implementation containing duplicate hrefs, strain 'Location' from location results"]
     }
-
-# Fish text out of webelement objects using regX and customizable encoding
-def text_fisher(webList, regX, encoding = "cp1252", decoding = "utf-8"):
-    return [re.search(regX, w.text.encode(encoding,"ignore").decode(decoding,"ignore").replace(u"\u2013", '-').replace(u"\u00E9", 'e'), re.M).group(1) if w is not None else None for w in webList]
 
 
 # Collects page links for websites that use pagination
@@ -74,6 +122,7 @@ def page_links(browse, pageLinkClass, title = "title", href = "href", tagName = 
     linkTexts = [link.get_attribute(title) for link in links]
     linkLinks = [link.get_attribute(href) for link in links]
 
+    # This option removes page buttons that go directly to the beginning/end of a list, as they can be redundant
     if notFirstLast:
         linkTexts.pop(0)
         linkLinks.pop(0)
@@ -147,38 +196,7 @@ def downer(browse, retrieveClasses = [None], pageLenClass = "title", pageTag = "
             returnWebElem[c] = browse.find_elements(selSelect, c)
 
     return returnWebElem
-
-
-# Populate data on job titles, posting links, and locations on a per-company basis
-def populate(jobDict, jobBoard, retrieveList):
-
-    populatedDict = {k : [] for k in retrieveList}
-
-    if jobDict["company"] == "OPG":
-        if 'href' in retrieveList:
-            populatedDict['href'] = [j.get_attribute('href') for j in jobBoard[jobDict["href"]][::2]]
-        if 'title' in retrieveList:
-            populatedDict['title'] =[j for j in text_fisher(jobBoard[jobDict["title"]], jobDict["title"][1]) if j != '']
-        if "work_loc" in retrieveList:
-            populatedDict['work_loc'] = [j.text.encode("cp1252","ignore").decode("utf-8","ignore").replace(u"\u2013", '-').replace(u"\u00E9", 'e') for j in jobBoard[jobDict["work_loc"]] if j.text != '' and j.text != 'Location']
-
-    elif jobDict["company"] == "Kepler":
-        if 'href' in retrieveList:
-            populatedDict['href'] = [j.get_attribute('href') for j in jobBoard[jobDict["href"]]]
-        if 'title' in retrieveList:
-            populatedDict['title'] =[j for j in text_fisher(jobBoard[jobDict["title"]], jobDict["title"][1]) if j != '']
-        if "work_loc" in retrieveList:
-            populatedDict['work_loc'] = [j.text.encode("cp1252","ignore").decode("utf-8","ignore").replace(u"\u2013", '-').replace(u"\u00E9", 'e') for j in jobBoard[jobDict["work_loc"]] if j.text != '']
- 
-    elif jobDict["company"] == "CNL":
-        if 'href' in retrieveList:
-            populatedDict['href'] = [j.get_attribute('href') for j in jobBoard[jobDict["href"]]]
-        if 'title' in retrieveList:
-            populatedDict['title'] = [j.text.encode("cp1252","ignore").decode("utf-8","ignore").replace(u"\u2013", '-').replace(u"\u00E9", 'e') for j in jobBoard[jobDict["title"]] if j.text != '']
-        if "work_loc" in retrieveList:
-            populatedDict['work_loc'] = [j for j in text_fisher(jobBoard[jobDict["work_loc"][0]], jobDict["work_loc"][1]) if j != '']
-    return populatedDict
-
+    
 
 # Adapted from https://stackoverflow.com/questions/46753393/how-to-run-headless-firefox-with-selenium-in-python
 # Initialize headless firefox webdriver
