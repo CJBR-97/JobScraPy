@@ -31,7 +31,7 @@ def r_fisher(webList, regX, encoding = "cp1252", decoding = "utf-8"):
 
 # Uses regex fisher to filter each item from a list
 def p_fisher(attrib, jobBoard, jobDict):
-    return [j for j in r_fisher(jobBoard[jobDict[attrib]], jobDict[attrib][1]) if j != '']
+    return [j for j in r_fisher(jobBoard[jobDict[attrib][0]], jobDict[attrib][1]) if j != '']
 
 
 # Handles web designs that double-up their entries
@@ -119,6 +119,8 @@ def page_links(browse, pageLinkClass, title = "title", href = "href", tagName = 
     # Find pagination section
     links = browse.find_element(By.CLASS_NAME, pageLinkClass)
     links = links.find_elements(By.TAG_NAME, tagName)
+    if links == []: 
+        return [None, None]
     linkTexts = [link.get_attribute(title) for link in links]
     linkLinks = [link.get_attribute(href) for link in links]
 
@@ -237,6 +239,7 @@ def filter_extras(sift_words):
     return matches
 
 # The full scraping process all in one
+# TODO turn it into a class and fold the rest inside it
 def JobScraPy(jobDict, retrieveList):
     # Start browsing
     browser = headless_fox()
@@ -249,7 +252,13 @@ def JobScraPy(jobDict, retrieveList):
         job_search = { k : [] for k in retrieveList }
         classList = [jobDict[k] for k in retrieveList]
 
+        nopages = False
         if jobDict["paginated"]:
+            if page_links(browser, jobDict["pageClass"]) == [None, None]:
+                nopages = True
+                print("No pages found other than starting page")
+
+        if jobDict["paginated"] and nopages == False:
             pgTxt, pgLnk = page_links(browser, jobDict["pageClass"])
             for (lnk, pg) in zip(pgLnk, pgTxt):
                 try:
