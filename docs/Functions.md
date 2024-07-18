@@ -8,4 +8,6 @@ nav_exclude: false
 search_exclude: false
 ---
 
+### Functions
+
 The core functions and their options will be detailed here as they are updated and examples are constructed.
