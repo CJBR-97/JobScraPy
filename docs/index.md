@@ -1,3 +1,9 @@
+---
+layout: default
+title: Index
+nav_exclude: true
+---
+
 Welcome to the JobScraPy documentation site, hosted by Github Pages. This site is a work-in-progress, I hope you enjoy it nonetheless.
 
 When using automated web tools, please remember to be respectful of the sites you visit and conserve your computing resources as well as theirs.  Different sites may also have policies that prohibit scraping altogether.
