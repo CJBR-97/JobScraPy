@@ -359,7 +359,7 @@ def JobScraPy(jobDict, retrieveList):
     return job_search
 
 
-def extract_single(inner_dict, job_search, wanted_keys, filter_func, filter_pattern, browser = None, solo = True, homepage = None):
+def extract_single(inner_dict, wanted_keys, filter_func, filter_pattern, browser = None, solo = True, homepage = None):
     if solo:
         # Start browsing
         browser = headless_fox()
