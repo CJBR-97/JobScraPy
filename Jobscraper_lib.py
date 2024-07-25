@@ -1,10 +1,12 @@
 import re
 import time
+import warnings
+import traceback
 import pandas as pd
 from bs4 import BeautifulSoup
 from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.firefox.options import Options
 
 
@@ -30,6 +32,7 @@ def get_last_n_words(text, word, n = 5):
     # Otherwise, return the last match (which is the closest to the end of the text)
     return matches
 
+
 # Capture or remove extra material from job description
 def parse_extras(text, pattern, filter = False):
     if filter:
@@ -39,6 +42,7 @@ def parse_extras(text, pattern, filter = False):
     if not matches:
         return None
     return matches
+
 
 def desc_parser(filter_func, desc_txt, pattern):
     # Get requirements
@@ -51,6 +55,7 @@ def desc_parser(filter_func, desc_txt, pattern):
     else:
         warnings.warn(r"No information found by filtering input for pattern {}".format(pattern))
         return None
+
 
 # Handle refinement of data according to available keys/tags/search methods
 def inner_process(browser, key_list, encoding = "cp1252", decoding = "utf-8"):
@@ -74,6 +79,7 @@ def inner_process(browser, key_list, encoding = "cp1252", decoding = "utf-8"):
     else:
         return str(x)
 
+
 def pull_text(keyw, desc_txt):
     k = list(filter(lambda text: keyw.lower() in text.lower(), desc_txt))
     # Handle the None case
@@ -93,7 +99,7 @@ def populate(jobDict, jobBoard, retrieveList):
     populatedDict = {k : [] for k in retrieveList}
     for k in retrieveList:
         populatedDict[k] = jobDict["populate"][k](k, jobBoard, jobDict)
-return populatedDict
+    return populatedDict
 
 
 # Function that uses regex to fish out details from page elements
@@ -121,7 +127,7 @@ def p_basic(attrib, jobBoard, jobDict):
     return [j.get_attribute(attrib) for j in jobBoard[jobDict[attrib]]]
 
 
-class Company_Settings():
+class Core_Settings():
     Kinectrics = {
         "company":"Kinectrics",
         "home":"https://careers.kinectrics.com/search/?createNewAlert=false&q=&locationsearch=",
@@ -185,18 +191,24 @@ class Company_Settings():
         "notes": ["Filtering on 'fine' mode is required", "Location and job href duplication are common with the OPG website through this program, partly due to the site's mobile implementation containing duplicate hrefs, strain 'Location' from location results"]
     }
 
+    # Detect various specific requirements
+    patterns = {
+        "education" : r"(?:[Dd]egree|[Mm]aster'?s?|[Bb]achelor'?s?|[Ss]econdary [Ss]chool|(?:[Pp]ost)?-?[Dd]octor(?:al)?(?:ate)?|[Pp]ost-?[Dd]oc|[Pp]ost-[Ss]econdary|[Mm]\.?[Ss][Cc]|[Bb]\.?[Ss][Cc]|(?:[Pp]ost|[Uu]nder)?-?grad(?:uate)?|[Pp][Hh]\.?[Dd])",
+        "experience" : r"(?:.*[Ee]xperience.*\n|.*(?:[Yy]ear|yr)s?.*role.*\n|.*role.*(?:[Yy]ear|yr)s?.*\n)",
+        "department" : r"^[Dd]epartments?\:\s*(.*)\n",
+    }
+
 
 # Collects page links for websites that use pagination
-def page_links(browse, pageLinkClass, title = "title", href = "href", tagName = 'a', notFirstLast = True, verbose = True):
+def page_links(browser, pageLinkClass, title = "title", href = "href", tagName = 'a', notFirstLast = True, verbose = True):
     # Find pagination section
-    links = browse.find_element(By.CLASS_NAME, pageLinkClass)
+    links = browser.find_element(By.CLASS_NAME, pageLinkClass)
     links = links.find_elements(By.TAG_NAME, tagName)
     if links == []: 
         return [None, None]
     linkTexts = [link.get_attribute(title) for link in links]
     linkLinks = [link.get_attribute(href) for link in links]
 
-    # This option removes page buttons that go directly to the beginning/end of a list, as they can be redundant
     if notFirstLast:
         linkTexts.pop(0)
         linkLinks.pop(0)
@@ -210,25 +222,23 @@ def page_links(browse, pageLinkClass, title = "title", href = "href", tagName = 
 
 
 # Opens a new tab and moves to it
-def turn_page(browse, link, page):
-    print("Accessing page {} with {} browser tabs open already".format(page, len(browse.window_handles)))
+def turn_page(browser, link, page):
+    print("Accessing page {} with {} browser tabs open already".format(page, len(browser.window_handles)))
     # Check we don't have other windows open already
-    assert len(browse.window_handles) == 1
-    browse.switch_to.new_window('tab')
-    browse.get(link)
+    assert len(browser.window_handles) == 1
+    browser.switch_to.new_window('tab')
+    browser.get(link)
     return None
 
 
-def downer(browse, retrieveClasses = [None], pageLenClass = "title", pageTag = "body", no_of_pagedowns = 100, fine = False):
-    
+def downer(browser, retrieveClasses = [None], pageLenClass = "title", pageTag = "body", no_of_pagedowns = 100, fine = False):  
     if fine:
         selSelect = By.CSS_SELECTOR
     else:
         selSelect = By.CLASS_NAME
+    pageElem = browser.find_element(By.TAG_NAME, pageTag)
+    numPresent = len(browser.find_elements(selSelect, pageLenClass))
 
-    pageElem = browse.find_element(By.TAG_NAME, pageTag)
-    numPresent = len(browse.find_elements(selSelect, pageLenClass))
-    
     print("Current len is {}".format(numPresent))
     pageElem.send_keys(Keys.PAGE_DOWN)
     time.sleep(0.5)
@@ -238,12 +248,12 @@ def downer(browse, retrieveClasses = [None], pageLenClass = "title", pageTag = "
         pageElem.send_keys(Keys.PAGE_DOWN)
         time.sleep(1)
         no_of_pagedowns-=1
-        
+
         if fine:
             selSelect = By.CSS_SELECTOR
         else:
             selSelect = By.CLASS_NAME
-        updateElems = len(browse.find_elements(selSelect, pageLenClass))
+        updateElems = len(browser.find_elements(selSelect, pageLenClass))
 
         if no_of_pagedowns%10 == 0:
             if updateElems > numPresent:
@@ -261,16 +271,16 @@ def downer(browse, retrieveClasses = [None], pageLenClass = "title", pageTag = "
                 selSelect = By.CSS_SELECTOR
             else:
                 selSelect = By.CLASS_NAME
-            returnWebElem[c[0]] = (browse.find_elements(selSelect, c[0]))
+            returnWebElem[c[0]] = (browser.find_elements(selSelect, c[0]))
+
         else:
             if fine:
                 selSelect = By.CSS_SELECTOR
             else:
                 selSelect = By.CLASS_NAME
-            returnWebElem[c] = browse.find_elements(selSelect, c)
+            returnWebElem[c] = browser.find_elements(selSelect, c)
 
-    return returnWebElem
-    
+    return returnWebElem    
 
 # Adapted from https://stackoverflow.com/questions/46753393/how-to-run-headless-firefox-with-selenium-in-python
 # Initialize headless firefox webdriver
@@ -280,25 +290,6 @@ def headless_fox():
     browser = webdriver.Firefox(options=fox_options)
     print ("Headless Firefox Initialized")
     return browser
-
-
-# Detect common education requirements using Regex
-def edu_prereqs(text):
-    pattern = r"(?:[Dd]egree|[Mm]aster'?s?|[Bb]achelor'?s?|[Ss]econdary [Ss]chool|(?:[Pp]ost)?-?[Dd]octor(?:al)?(?:ate)?|[Pp]ost-?[Dd]oc|[Pp]ost-[Ss]econdary|[Mm]\.?[Ss][Cc]|[Bb]\.?[Ss][Cc]|(?:[Pp]ost|[Uu]nder)?-?grad(?:uate)?|[Pp][Hh]\.?[Dd])"
-    matches = re.findall(pattern, text, re.M)
-    if not matches:
-        return None
-    return matches
-
-
-# Remove extraneous material from job description
-# Note: Can nuke large sections of text, so be sure to check if any important data has been removed before proceeding
-def filter_extras(sift_words):
-    pattern = r".*?(?:" + "|".join(sift_words) + r").*?\."
-    matches = re.sub(pattern, '', text, flags = re.M | re.I)
-    if not matches:
-        return None
-    return matches
 
 
 # The full scraping process all in one
@@ -312,7 +303,7 @@ def JobScraPy(jobDict, retrieveList):
         time.sleep(1)
         # Store the ID of the original window
         original_window = browser.current_window_handle
-        job_search = { k : [] for k in retrieveList }
+        job_search = {k : [] for k in retrieveList}
         classList = [jobDict[k] for k in retrieveList]
 
         nopages = False
@@ -352,6 +343,9 @@ def JobScraPy(jobDict, retrieveList):
                 traceback.print_exc()
             finally:
                 print("Done scraping main board")
+
+        print(job_search)
+        #print([len(job_search[k]) for k in job_search])
 
     except Exception as e:
         print(f"An error occurred: {e}")
