@@ -127,7 +127,7 @@ def p_basic(attrib, jobBoard, jobDict):
     return [j.get_attribute(attrib) for j in jobBoard[jobDict[attrib]]]
 
 
-class Core_Settings():
+class Core_Vars():
     Kinectrics = {
         "company":"Kinectrics",
         "home":"https://careers.kinectrics.com/search/?createNewAlert=false&q=&locationsearch=",
@@ -194,7 +194,7 @@ class Core_Settings():
     # Detect various specific requirements
     patterns = {
         "education" : r"(?:[Dd]egree|[Mm]aster'?s?|[Bb]achelor'?s?|[Ss]econdary [Ss]chool|(?:[Pp]ost)?-?[Dd]octor(?:al)?(?:ate)?|[Pp]ost-?[Dd]oc|[Pp]ost-[Ss]econdary|[Mm]\.?[Ss][Cc]|[Bb]\.?[Ss][Cc]|(?:[Pp]ost|[Uu]nder)?-?grad(?:uate)?|[Pp][Hh]\.?[Dd])",
-        "experience" : r"(?:.*[Ee]xperience.*\n|.*(?:[Yy]ear|yr)s?.*role.*\n|.*role.*(?:[Yy]ear|yr)s?.*\n)",
+        "experience" : r"(?:.*[Ee]xperience.*|.*(?:[Yy]ear|yr)s?.*role.*|.*role.*(?:[Yy]ear|yr)s?.*)",
         "department" : r"^[Dd]epartments?\:\s*(.*)\n",
     }
 
