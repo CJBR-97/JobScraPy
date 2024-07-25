@@ -16,6 +16,78 @@ from selenium.webdriver.firefox.options import Options
 # And as always, thanks to RegexOne for their excellent tutorials
 
 
+# Use Regex to match the last n words before a target word
+def get_last_n_words(text, word, n = 5):
+    # Create a regex pattern to match the last five words before the specified word
+    pattern = r"(?:\S*\s*){1,4}" + re.escape(word) #r"((?:\S+\s+){0,n})" + re.escape(word)
+    # Use the re.findall function to find all matches in the text
+    matches = re.search(pattern, text, re.M)
+    # If there are no matches, return an empty string
+    if not matches:
+        return None
+
+    #print("matches", matches)
+    # Otherwise, return the last match (which is the closest to the end of the text)
+    return matches
+
+# Capture or remove extra material from job description
+def parse_extras(text, pattern, filter = False):
+    if filter:
+        matches = re.sub(pattern, '', text, re.M)
+    else:
+        matches = re.findall(pattern, text, re.M)
+    if not matches:
+        return None
+    return matches
+
+def desc_parser(filter_func, desc_txt, pattern):
+    # Get requirements
+    reqs = [filter_func(txt, pattern) for txt in desc_txt]
+    reqs = [e for e in reqs if e != None]
+    if reqs != []:
+        reqs = list(set([r for req in reqs for r in req]))
+        reqs.sort()
+        return reqs
+    else:
+        warnings.warn(r"No information found by filtering input for pattern {}".format(pattern))
+        return None
+
+# Handle refinement of data according to available keys/tags/search methods
+def inner_process(browser, key_list, encoding = "cp1252", decoding = "utf-8"):
+    x = browser.find_element(key_list[0], key_list[1])
+    x = x.text.encode(encoding,"ignore").decode(decoding,"ignore").replace(u"\u2013", '-').replace(u"\u00E9", 'e').replace(u'\u2022', '-').replace(u'\u201D', '\"').replace(u'\u201C', '\"')
+    if x is None:
+        raise Exception("No data extracted from browser page.  Please check that indices of key_list are correct for the website")
+
+    if all(key_list):
+        # Yank & Regex
+        x = re.search(key_list[2], x, re.M)
+        print(type(x))
+        if x is None:
+            raise Exception("No regex pattern matches found in input string")
+        else:
+            x = x.group(1)
+            print(type(x))
+
+    if x.isnumeric():
+        return int(x)
+    else:
+        return str(x)
+
+def pull_text(keyw, desc_txt):
+    k = list(filter(lambda text: keyw.lower() in text.lower(), desc_txt))
+    # Handle the None case
+    if k in [[None], None, [], "[]"]:
+        warnings.warn("No information found by filtering input for key {}".format(keyw))
+        return None
+    # or get the proceeding element in the job description if keyword shows up only once
+    elif len(k) == 1 and k[0].lower() in keyw:
+        return desc_txt[desc_txt.index(k[0])+1]
+    # or save the text element containing the word
+    else:
+        return k
+
+
 # Filters content from scraping into appropriate final format
 def populate(jobDict, jobBoard, retrieveList):
     populatedDict = {k : [] for k in retrieveList}
@@ -210,16 +282,6 @@ def headless_fox():
     return browser
 
 
-# Use Regex to match the last n words before a target word
-def get_last_n_words(text, word, n = 5):
-    pattern = r"(?:\S*\s*){1,4}" + re.escape(word)
-    matches = re.search(pattern, text, re.M)
-    if not matches:
-        print("No matches found")
-        return None
-    return matches
-
-
 # Detect common education requirements using Regex
 def edu_prereqs(text):
     pattern = r"(?:[Dd]egree|[Mm]aster'?s?|[Bb]achelor'?s?|[Ss]econdary [Ss]chool|(?:[Pp]ost)?-?[Dd]octor(?:al)?(?:ate)?|[Pp]ost-?[Dd]oc|[Pp]ost-[Ss]econdary|[Mm]\.?[Ss][Cc]|[Bb]\.?[Ss][Cc]|(?:[Pp]ost|[Uu]nder)?-?grad(?:uate)?|[Pp][Hh]\.?[Dd])"
@@ -237,6 +299,7 @@ def filter_extras(sift_words):
     if not matches:
         return None
     return matches
+
 
 # The full scraping process all in one
 # TODO turn it into a class and fold the rest inside it
@@ -300,3 +363,69 @@ def JobScraPy(jobDict, retrieveList):
         browser.quit()
     
     return job_search
+
+
+def extract_single(inner_dict, job_search, wanted_keys, filter_func, filter_pattern, browser = None, solo = True, homepage = None):
+    if solo:
+        # Start browsing
+        browser = headless_fox()
+        try:
+            browser.get(homepage)
+            time.sleep(1)
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            traceback.print_exc()
+
+    try:
+        pg_dict = {} #{k : [] for k in wanted_keys}
+        # Parse the HTML using BeautifulSoup
+        source = browser.page_source
+        soup = BeautifulSoup(source, 'html.parser')
+        # Find all text elements within the HTML
+        text_elements = soup.find_all(['p', 'ul', 'ol', 'li'])
+        # Extract the touched-up text data from the webpage
+        desc_txt = [text.get_text().replace(u"\u00A0", ' ').replace(u"\u00E9", 'e').replace(u"\u2013", '-').encode("cp1252","ignore").decode("utf-8","ignore") for text in text_elements]
+        # Filter out any keywords or stuff that we don't want in the full description
+        if filter_func:
+            desc_txt = [parse_extras(text, filter_pattern, filter = True) for text in desc_txt]
+        desc_txt = [r" ".join(text.splitlines()) for text in desc_txt if text != None]        
+        job_desc = r" ".join(desc_txt)
+
+        for k in wanted_keys:
+            try:
+                # If we have a shortcut to finding a desired term or item, take it
+                if k in inner_dict:
+                    pg_dict[k] = inner_process(browser, inner_dict[k])
+                else:
+                    # First special case is the description, so we simply take it all here
+                    if k.lower() == "description":
+                        pg_dict["Description"] = desc_txt
+                    # Dept. info is often buried or obscured and so should be handled separately
+                    elif k.lower() in ["department", "dept", "dept."]:
+                        y = get_last_n_words(job_desc, "[Dd]epartment")
+                        if y != None:
+                            pg_dict["department"] = y.group(0)
+                        else:
+                            pg_dict["department"] = desc_parser(parse_extras, desc_txt, patterns[k])                                      
+                    # Similar to below, but entire text elements are pulled
+                    elif wanted_keys[k] == True:
+                        pg_dict[k] = pull_text(k, desc_txt)
+                    else:
+                        # Sequentially parse description for user-specified data such as degrees, software proficiencies, ect.
+                        pg_dict[k] = desc_parser(parse_extras, desc_txt, patterns[k])
+            except:
+                warnings.warn("No information found by filtering input for key {}".format(k))
+                pg_dict[k] = None
+
+        # Don't forget to close the driver
+        if solo:
+            browser.quit()
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        # Don't forget to close the driver
+        browser.quit()
+        traceback.print_exc()
+
+    print(pg_dict)
+    return pg_dict
