@@ -421,5 +421,7 @@ def extract_single(inner_dict, wanted_keys, filter_func, filter_pattern, browser
         browser.quit()
         traceback.print_exc()
 
+        browser.close()
+        
     print(pg_dict)
     return pg_dict
