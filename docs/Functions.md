@@ -11,3 +11,15 @@ search_exclude: false
 ### Core Functions
 
 The core functions and their options will be detailed here as they are updated and examples are constructed.
+
+<dl>
+<dt>Name</dt>
+<dd> 
+Some details
+
+```python
+print("Hello World")
+```
+
+</dd>
+</dl>
