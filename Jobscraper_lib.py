@@ -363,12 +363,13 @@ def extract_single(inner_dict, wanted_keys, filter_func, filter_pattern, browser
     if solo:
         # Start browsing
         browser = headless_fox()
-        try:
-            browser.get(homepage)
-            time.sleep(1)
-        except Exception as e:
-            print(f"An error occurred: {e}")
-            traceback.print_exc()
+
+    try:
+        browser.get(homepage)
+        time.sleep(1)
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        traceback.print_exc()
 
     try:
         pg_dict = {} #{k : [] for k in wanted_keys}
@@ -414,14 +415,14 @@ def extract_single(inner_dict, wanted_keys, filter_func, filter_pattern, browser
         # Don't forget to close the driver
         if solo:
             browser.quit()
+        else:
+            browser.close()
 
     except Exception as e:
         print(f"An error occurred: {e}")
-        # Don't forget to close the driver
+        # Don't forget to close the driver on the way out
         browser.quit()
         traceback.print_exc()
 
-        browser.close()
-        
     print(pg_dict)
     return pg_dict
