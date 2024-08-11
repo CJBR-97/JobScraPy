@@ -18,9 +18,9 @@ The core functions and their options will be detailed here as they are updated a
 Capture or remove extra material from job description.
   
   **Parameters:**
-    * text (string) -- Input text data to parse through.
-    * pattern (string) -- Raw string regex expression to use on the text.
-    * filter (bool) -- Switches from returning all instances of pattern matches in the string to filtering pattern out of input string.  Default False.
+    *  text (string) -- Input text data to parse through.
+    *  pattern (string) -- Raw string regex expression to use on the text.
+    *  filter (bool) -- Switches from returning all instances of pattern matches in the string to filtering pattern out of input string.  Default False.
 
   **Example:**
   ```python
