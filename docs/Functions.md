@@ -16,9 +16,7 @@ The core functions and their options will be detailed here as they are updated a
 <dt>def parse_extras(text, pattern, filter = False)</dt>
 <dd> 
 Capture or remove extra material from job description.
-</dd>
-</dl>
-  
+
   **Parameters:**
   *  text (string) -- Input text data to parse through.
   *  pattern (string) -- Raw string regex expression to use on the text.
@@ -29,3 +27,6 @@ Capture or remove extra material from job description.
   # This will clean up 'blah' from a list of text strings called desc_txt
   parsedtxt = [parse_extras(text, r'(blah\s?)+', filter = True) for text in desc_txt if text != None]  
   ```
+
+</dd>
+</dl>
