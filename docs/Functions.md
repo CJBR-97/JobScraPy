@@ -20,12 +20,30 @@ Capture or remove extra material from job description.
 </dl>
 
   **Parameters:**
-  *  text (string) -- Input text data to parse through.
-  *  pattern (string) -- Raw string regex expression to use on the text.
+  *  text (str) -- Input text data to parse through.
+  *  pattern (str) -- Raw string regex expression to use on the text.
   *  filter (bool) -- Switches from returning all instances of pattern matches in the string to filtering pattern out of input string.  Default False.
+
+  **Returns:**
+  *  matches (str) -- The processed input text.
 
   **Example:**
   ```python
   # This will clean up 'blah' from a list of text strings called desc_txt
   parsedtxt = [parse_extras(text, r'(blah\s?)+', filter = True) for text in desc_txt if text != None]  
   ```
+
+<dl>
+<dt>def desc_parser(filter_func, desc_txt, pattern)</dt>
+<dd> 
+Parse through a list of descriptive strings using a filter function and regex pattern.
+</dd>
+</dl>
+
+  **Parameters:**
+  *  filter_func (func) -- Any function that takes a string and regex pattern as an argument and returns a new string.
+  *  desc_txt (list of str) -- A list containing string elements.
+  *  pattern (str) -- Raw string regex expression to use with a filter function.
+
+  **Returns:**
+  *  reqs (list of str) -- A list of unique, sorted elements processed through the filter function.
