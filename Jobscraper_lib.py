@@ -17,7 +17,7 @@ from selenium.webdriver.firefox.options import Options
 # Thanks to https://www.selenium.dev/documentation/webdriver/interactions/windows/ for a better understanding of webdriver window operations
 # And as always, thanks to RegexOne for their excellent tutorials
 
-
+# Adapted from source stackoverflow, still looking for original link/post
 # Use Regex to match the last n words before a target word
 def get_last_n_words(text, word, n = 5):
     # Create a regex pattern to match the last five words before the specified word
