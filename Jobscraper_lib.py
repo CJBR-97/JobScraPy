@@ -1,12 +1,15 @@
 import re
 import time
 import warnings
+import datetime
+from functools import partial
 import traceback
 import pandas as pd
+from pprint import pprint
 from bs4 import BeautifulSoup
 from selenium import webdriver
-from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.by import By
 from selenium.webdriver.firefox.options import Options
 
 
@@ -17,220 +20,236 @@ from selenium.webdriver.firefox.options import Options
 # Thanks to https://www.selenium.dev/documentation/webdriver/interactions/windows/ for a better understanding of webdriver window operations
 # And as always, thanks to RegexOne for their excellent tutorials
 
-# Adapted from source stackoverflow, still looking for original link/post
-# Use Regex to match the last n words before a target word
-def get_last_n_words(text, word, n = 5):
-    # Create a regex pattern to match the last five words before the specified word
-    pattern = r"(?:\S*\s*){1,4}" + re.escape(word) #r"((?:\S+\s+){0,n})" + re.escape(word)
-    # Use the re.findall function to find all matches in the text
-    matches = re.search(pattern, text, re.M)
-    # If there are no matches, return an empty string
-    if not matches:
-        return None
 
-    #print("matches", matches)
-    # Otherwise, return the last match (which is the closest to the end of the text)
-    return matches
+class jobScraPy:
+    def __init__(self):
+        """
+        A job scraping class, designed to take a single website per instance and process any detected postings into Pandas and/or Excel details for the user.
+        Parameters:
+        * None
+        """
+
+        self.today = datetime.datetime.now()
+        self.board = None
+        self.helpsites = ["https://regex101.com/", "https://regexone.com/"]
+        print("Initialized jobScraPy class instance at {}:{}".format(self.today.hour, self.today.minute))
+
+        ###### Initialize class object variables ######
+
+        # Detect various requirements (future update: to caseless regex search mode)
+        self.patterns = {
+            "education" : r"(?:[Dd]egree|[Mm]aster'?s?|[Bb]achelor'?s?|PEO|[Ee]ngineer(?:ing)?|[Uu]niversity\s[Ee]ducation|[Cc]ollege|[Dd]iploma|[Hh]igher\seducation|[Ss]econdary\s[Ss]chool|(?:[Pp]ost)?-?[Dd]octor(?:al)?(?:ate)?|[Pp]ost-?[Dd]oc|[Pp]ost-[Ss]econdary|[Mm]\.?[Ss][Cc]|[Bb]\.?[Ss][Cc]|(?:[Pp]ost|[Uu]nder)?-?grad(?:uate)?|[Pp][Hh]\.?[Dd])",
+            "experience" : r"(?:.*[Ee]xperience.*|.*(?:[Yy]ear|yr)s?.*role.*|.*role.*(?:[Yy]ear|yr)s?.*)",
+            "department" : r"^[Dd]epartments?:?\s*(.*)\s*?\n?",
+            "looking for" : r"[Ll]ooking\sfor:?\s*(.*)\s*?\n?$",
+            "location" : r"^(?:[Ll]ocations?:?\s*(.*)\s*?\n?)$",
+            "type" : r"^(?:[Ee]mployment|[Oo]pportunity|[Jj]ob)\s[Tt]ypes?:?\s*(.*)\n?$",
+            "reports to" : r"[Rr]eports to\s?:?\s*(.*)\s*?\n?$"
+        }
+
+    
+    def custom_company(self):
+        """
+        A fillable empty dictionary that allows users to customize the processing of a specific website.
+        Parameters:
+        * None
+        Returns:
+        * company_dict (dict): A dictionary containing keys with placeholder values that are used by functions in the parent class.
+        """
+        company_dict = {
+            "company": "",
+            "home": "",
+            "title": ["", r""],
+            "location": "",
+            "type": "",
+            "department": "",
+            "pg_down": "",
+            "href": "",
+            "pagefunc": None,
+            "populate": {'href': "", 'title': "", 'location' : ""},
+            "inner": {"": [None, "", None]},
+            "filter": "",
+            "notes": ""
+        }
+        return company_dict
+
+    
+    def set_board(self, board):
+        """
+        Allows the user to set a provided dictionary as the current board variable of the JobScraPy class instance.
+        Parameters:
+        * board (dict): The user-provided job board dictionary for an arbitrary website. This should use the same structure and keys as company_dict.
+        Returns:
+        * None
+        """
+        self.board = board
 
 
-# Capture or remove extra material from job description
-def parse_extras(text, pattern, filter = False):
-    if filter:
-        matches = re.sub(pattern, '', text, re.M)
-    else:
-        matches = re.findall(pattern, text, re.M)
-    if not matches:
-        return None
-    return matches
+    ###### Define filter assist functions ######
+    
+
+    # Adapted from source stackoverflow, still looking for original link/post
+    # Use Regex to match the last n words before a target word
+    def get_last_n_words(self, text, word, n = 5):
+        # Create a regex pattern to match the last five words before the specified word
+        pattern = r"(?:\S*\s*){1,4}" + re.escape(word) #r"((?:\S+\s+){0,n})" + re.escape(word)
+        # Use the re.findall function to find all matches in the text
+        matches = re.search(pattern, text, re.M)
+        # If there are no matches, return an empty string
+        if not matches:
+            return None
+        # Otherwise, return the last match (which is the closest to the end of the text)
+        return matches
 
 
-def desc_parser(filter_func, desc_txt, pattern):
-    # Get requirements
-    reqs = [filter_func(txt, pattern) for txt in desc_txt]
-    reqs = [e for e in reqs if e != None]
-    if reqs != []:
-        reqs = list(set([r for req in reqs for r in req]))
-        reqs.sort()
-        return reqs
-    else:
-        warnings.warn(r"No information found by filtering input for pattern {}".format(pattern))
-        return None
-
-
-# Handle refinement of data according to available keys/tags/search methods
-def inner_process(browser, key_list, encoding = "cp1252", decoding = "utf-8"):
-    x = browser.find_element(key_list[0], key_list[1])
-    x = x.text.encode(encoding,"ignore").decode(decoding,"ignore").replace(u"\u2013", '-').replace(u"\u00E9", 'e').replace(u'\u2022', '-').replace(u'\u201D', '\"').replace(u'\u201C', '\"')
-    if x is None:
-        raise Exception("No data extracted from browser page.  Please check that indices of key_list are correct for the website")
-
-    if all(key_list):
-        # Yank & Regex
-        x = re.search(key_list[2], x, re.M)
-        print(type(x))
-        if x is None:
-            raise Exception("No regex pattern matches found in input string")
+    # Capture or remove extra material from job description
+    def parse_extras(self, text, pattern, filter = False):
+        if filter:
+            matches = re.sub(pattern, '', text, re.M)
         else:
-            x = x.group(1)
+            matches = re.findall(pattern, text, re.M)
+        if not matches:
+            return None
+        return matches
+
+    
+    # Applies a filter function (such as parse_extras) to clean up text from a job description
+    def desc_parser(self, filter_func, desc_txt, pattern):
+        # Get requirements
+        reqs = [filter_func(txt, pattern) for txt in desc_txt]
+        reqs = [e for e in reqs if e != None]
+        if reqs != []:
+            reqs = list(set([r for req in reqs for r in req]))
+            reqs.sort()
+            return reqs
+        else:
+            warnings.warn(r"No information found by parsing description for pattern {}".format(pattern))
+            return None
+
+    
+    # Handle refinement of specific posting page data according to available keys/tags/search methods
+    def inner_process(self, browser, key_list, encoding = "cp1252", decoding = "utf-8"):
+        x = browser.find_element(key_list[0], key_list[1])
+        x = x.text.encode(encoding,"ignore").decode(decoding,"ignore").replace(u"\u2013", '-').replace(u"\u00E9", 'e').replace(u'\u2022', '-').replace(u'\u201D', '\"').replace(u'\u201C', '\"')
+        if x is None:
+            raise Exception("No data extracted from browser page.  Please check that indices of key_list are correct for the website")
+
+        if all(key_list):
+            # Yank & Regex
+            x = re.search(key_list[2], x, re.M)
             print(type(x))
+            if x is None:
+                raise Exception("No regex pattern matches found in input string")
+            else:
+                x = x.group(1)
+                print(type(x))
 
-    if x.isnumeric():
-        return int(x)
-    else:
-        return str(x)
+        if x.isnumeric():
+            return int(x)
+        else:
+            return str(x)
 
 
-def pull_text(keyw, desc_txt):
-    k = list(filter(lambda text: keyw.lower() in text.lower(), desc_txt))
-    # Handle the None case
-    if k in [[None], None, [], "[]"]:
-        warnings.warn("No information found by filtering input for key {}".format(keyw))
+    def pull_text(self, keyw, desc_txt):
+        get_next = 1
+        k = list(filter(lambda text: keyw.lower() in text.lower(), desc_txt))
+        # Handle the None case
+        if k in [[None], None, [], "[]"]:
+            warnings.warn("Unable to pull non-None text for key {}".format(keyw))
+            return None
+        # or get the proceeding element in the job description if keyword shows up only once
+        elif len(k) == 1 and k[0].lower() in keyw.lower():
+            if len(desc_txt[desc_txt.index(k[0]) + get_next]) <= 2:
+                return desc_txt[desc_txt.index(k[0]) + get_next + 1]
+            else:
+                return desc_txt[desc_txt.index(k[0]) + get_next]
+        # or save the text element containing the word
+        else:
+            return k
+
+
+    # Function that uses regex to fish out details from page elements
+    def r_fisher(self, webList, regX, encoding = "cp1252", decoding = "utf-8"):
+        return[re.search(regX, w.text.encode(encoding,"ignore").decode(decoding,"ignore").replace(u"\u2013", '-').replace(u"\u00E9", 'e'), re.M).group(1) if w is not None else None for w in webList]
+
+    # Uses regex fisher to filter each item from a list
+    def p_fisher(self, attrib, jobBoard):
+        return [j for j in self.r_fisher(jobBoard[self.board[attrib][0]], self.board[attrib][1]) if j != '']
+
+
+    # Handles web designs that double-up their entries
+    def p_doubles(self, attrib, jobBoard):
+        return [j.get_attribute(attrib) for j in jobBoard[self.board[attrib]][::2]]
+
+    
+    # Replaces some common problem characters in web text elements
+    def p_replace(self, attrib, jobBoard):
+        return [j.text.encode("cp1252","ignore").decode("utf-8","ignore").replace(u"\u2013", '-').replace(u"\u00E9", 'e') for j in jobBoard[self.board[attrib]] if j.text != '' and j.text.lower() != attrib]
+
+    
+    # Basic extraction of details without many significant post-processing
+    def p_basic(self, attrib, jobBoard):
+        return [j.get_attribute(attrib) for j in jobBoard[self.board[attrib]]]
+
+    
+    # Filters content from scraping into appropriate final format
+    def populate(self, jobBoard, retrieveList):
+        populatedDict = {k : [] for k in retrieveList}
+        for k in retrieveList:
+            populatedDict[k] = self.board["populate"][k](k, jobBoard)
+        return populatedDict
+
+
+    # Collects page links for websites that use pagination
+    def page_links(self, browser, pageLinkClass, title = "title", href = "href", tagName = 'a', notFirstLast = 'both', verbose = True):
+        # Find pagination section
+        links = browser.find_element(By.CLASS_NAME, pageLinkClass)
+        links = links.find_elements(By.TAG_NAME, tagName)
+        
+        if links == []: 
+            self.pgTxt = None
+            self.pgLnk = None
+            return None
+        
+        linkTexts = [link.get_attribute(title) for link in links]
+        # Failsafe for pages without title attributes
+        if all(linkTexts) == False:
+            linkTexts = [link.text.encode("cp1252","ignore").decode("utf-8","ignore") for link in links]
+
+        linkLinks = [link.get_attribute(href) for link in links]
+
+        if notFirstLast:
+            indices = [i for i, t in enumerate(linkTexts) if t != ""]
+            if notFirstLast.lower() in ["first", "both"]:
+                indices.pop(0)
+            if notFirstLast.lower() in ["last", "both"]:
+                indices.pop(-1)
+
+            linkTexts = [linkTexts[i] for i in indices]
+            linkLinks = [linkLinks[i] for i in indices]
+
+        if verbose:
+            print("Found pagelinks for {}".format(linkTexts))
+
+        self.pgTxt = linkTexts
+        self.pgLnk = linkLinks
         return None
-    # or get the proceeding element in the job description if keyword shows up only once
-    elif len(k) == 1 and k[0].lower() in keyw:
-        return desc_txt[desc_txt.index(k[0])+1]
-    # or save the text element containing the word
-    else:
-        return k
+
+    # Opens a new tab and moves to it
+    def turn_page(self, browser, link, page):
+        print("Accessing page {} with {} browser tabs open already".format(page, len(browser.window_handles)))
+        # Check we don't have other windows open already
+        assert len(browser.window_handles) == 1
+        browser.switch_to.new_window('tab')
+        browser.get(link)
+        return None
 
 
-# Filters content from scraping into appropriate final format
-def populate(jobDict, jobBoard, retrieveList):
-    populatedDict = {k : [] for k in retrieveList}
-    for k in retrieveList:
-        populatedDict[k] = jobDict["populate"][k](k, jobBoard, jobDict)
-    return populatedDict
 
 
-# Function that uses regex to fish out details from page elements
-def r_fisher(webList, regX, encoding = "cp1252", decoding = "utf-8"):
-    return[re.search(regX, w.text.encode(encoding,"ignore").decode(decoding,"ignore").replace(u"\u2013", '-').replace(u"\u00E9", 'e'), re.M).group(1) if w is not None else None for w in webList]
 
 
-# Uses regex fisher to filter each item from a list
-def p_fisher(attrib, jobBoard, jobDict):
-    return [j for j in r_fisher(jobBoard[jobDict[attrib][0]], jobDict[attrib][1]) if j != '']
-
-
-# Handles web designs that double-up their entries
-def p_doubles(attrib, jobBoard, jobDict):
-    return [j.get_attribute(attrib) for j in jobBoard[jobDict[attrib]][::2]]
-
-
-# Replaces some common problem characters in web text elements
-def p_replace(attrib, jobBoard, jobDict):
-    return [j.text.encode("cp1252","ignore").decode("utf-8","ignore").replace(u"\u2013", '-').replace(u"\u00E9", 'e') for j in jobBoard[jobDict[attrib]] if j.text != '' and j.text.lower() != attrib]
-
-
-# Basic extraction of details without many significant post-processing
-def p_basic(attrib, jobBoard, jobDict):
-    return [j.get_attribute(attrib) for j in jobBoard[jobDict[attrib]]]
-
-
-class Core_Vars():
-    Kinectrics = {
-        "company":"Kinectrics",
-        "home":"https://careers.kinectrics.com/search/?createNewAlert=false&q=&locationsearch=",
-        "title":"jobTitle-link",
-        "location":"jobLocation",
-        "pg_down": "jobTitle-link",
-        "href":"jobTitle-link",
-        "paginated": True,
-        "pageClass":"pagination",
-        "populate": {'href': p_doubles, 'title': p_replace, 'location' : p_replace},
-        "inner": None,
-        "filter": False,
-        "notes": ["No internal HTML/CSS class structure to posting pages, full text extraction & post-processing recommended", "Formatting between postings varies, expect more cleanup work in results from this site"]
-    }
-
-    CaNuLabs = {
-        "company": "CNL",
-        "home": "https://tre.tbe.taleo.net/tre01/ats/careers/v2/searchResults?org=CNLLTD&cws=37",
-        "title": "viewJobLink",
-        "work_type": "workplaceTypes", 
-        "work_commit": "commitment",
-        "location": ["oracletaleocwsv2-accordion-head-info", r'^[^\n]+\n([\)\(\.\w \-&]+)'],
-        "pg_down": "viewJobLink",
-        "href": "viewJobLink",
-        "paginated": False,
-        "populate": {'href': p_basic, 'title': p_replace, 'location' : p_fisher},
-        "inner": {"Description" : "cwsJobDescription", "ID": ["well.oracletaleocwsv2-job-description", r'^[Pp]osition [Nn]umbers?\s+(\d+).*\n'], "Dept" : r'^[Dd]epartments?\:\s*(.*)\n'},
-        "filter": False,
-        "notes": ["No pagination, only scrolldown loads new listings on this site", "Formatting between postings varies, expect more cleanup work in results from this site"]
-    }
-
-    
-    Kepler = {
-        "company": "Kepler",
-        "home": 'https://jobs.lever.co/kepler',
-        "title": ["posting-title", r"^(.*)\n"],
-        "work_type": "workplaceTypes", 
-        "work_commit": "commitment",
-        "location": "location",
-        "pg_down": "posting-apply",
-        "href": "posting-title",
-        "paginated": False,
-        "populate": {'href': p_basic, 'title': p_fisher, 'location' : p_replace},
-        "inner": {"Description" : "", "ID" : "", "Education" : "", "XP" : ""},
-        "filter": False
-    }
-
-    
-    OnPowGen = {
-        "company": "OPG",
-        "home": "https://jobs.opg.com/search/?q=&sortColumn=referencedate&sortDirection=desc&searchby=location&d=15",
-        "title": ["a.jobTitle-link", r"(.*)"],
-        "location": "span.jobLocation",
-        "pg_down": "span.jobFacility",
-        "href": "a.jobTitle-link",
-        "paginated": True,
-        "pageClass": "pagination",
-        "populate": {'href': p_doubles, 'title': p_fisher, 'location' : p_replace},
-        "inner": {"Description" : "", "ID" : [By.CSS_SELECTOR, "[data-careersite-propertyid='facility']"], "Education" : "", "XP" : ""},
-        "filter": "fine",
-        "notes": ["Filtering on 'fine' mode is required", "Location and job href duplication are common with the OPG website through this program, partly due to the site's mobile implementation containing duplicate hrefs, strain 'Location' from location results"]
-    }
-
-    # Detect various specific requirements
-    patterns = {
-        "education" : r"(?:[Dd]egree|[Mm]aster'?s?|[Bb]achelor'?s?|[Ss]econdary [Ss]chool|(?:[Pp]ost)?-?[Dd]octor(?:al)?(?:ate)?|[Pp]ost-?[Dd]oc|[Pp]ost-[Ss]econdary|[Mm]\.?[Ss][Cc]|[Bb]\.?[Ss][Cc]|(?:[Pp]ost|[Uu]nder)?-?grad(?:uate)?|[Pp][Hh]\.?[Dd])",
-        "experience" : r"(?:.*[Ee]xperience.*|.*(?:[Yy]ear|yr)s?.*role.*|.*role.*(?:[Yy]ear|yr)s?.*)",
-        "department" : r"^[Dd]epartments?\:\s*(.*)\n",
-    }
-
-
-# Collects page links for websites that use pagination
-def page_links(browser, pageLinkClass, title = "title", href = "href", tagName = 'a', notFirstLast = True, verbose = True):
-    # Find pagination section
-    links = browser.find_element(By.CLASS_NAME, pageLinkClass)
-    links = links.find_elements(By.TAG_NAME, tagName)
-    if links == []: 
-        return [None, None]
-    linkTexts = [link.get_attribute(title) for link in links]
-    linkLinks = [link.get_attribute(href) for link in links]
-
-    if notFirstLast:
-        linkTexts.pop(0)
-        linkLinks.pop(0)
-        linkTexts.pop(-1)
-        linkLinks.pop(-1)
-    
-    if verbose:
-        print("Found pagelinks for {}".format(linkTexts))
-
-    return [linkTexts, linkLinks]
-
-
-# Opens a new tab and moves to it
-def turn_page(browser, link, page):
-    print("Accessing page {} with {} browser tabs open already".format(page, len(browser.window_handles)))
-    # Check we don't have other windows open already
-    assert len(browser.window_handles) == 1
-    browser.switch_to.new_window('tab')
-    browser.get(link)
-    return None
-
-
+"""
 def downer(browser, retrieveClasses = [None], pageLenClass = "title", pageTag = "body", no_of_pagedowns = 100, fine = False):  
     if fine:
         selSelect = By.CSS_SELECTOR
@@ -426,3 +445,4 @@ def extract_single(inner_dict, wanted_keys, filter_func, filter_pattern, browser
 
     print(pg_dict)
     return pg_dict
+"""
