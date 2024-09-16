@@ -12,6 +12,7 @@ search_exclude: false
 
 The core functions and their options will be detailed here as they are updated and examples are constructed.
 
+## parse_extras
 <dl>
 <dt>def parse_extras(text, pattern, filter = False)</dt>
 <dd> 
@@ -33,6 +34,7 @@ Capture or remove extra material from job description.
   parsedtxt = [parse_extras(text, r'(blah\s?)+', filter = True) for text in desc_txt if text != None]  
   ```
 
+## desc_parser
 <dl>
 <dt>def desc_parser(filter_func, desc_txt, pattern)</dt>
 <dd> 
