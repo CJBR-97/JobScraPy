@@ -250,6 +250,7 @@ class jobScraPy:
 
 
 """
+# Acknowledgement to https://stackoverflow.com/questions/21006940/how-to-load-all-entries-in-an-infinite-scroll-at-once-to-parse-the-html-in-python for page down loading code
 def downer(browser, retrieveClasses = [None], pageLenClass = "title", pageTag = "body", no_of_pagedowns = 100, fine = False):  
     if fine:
         selSelect = By.CSS_SELECTOR
