@@ -172,6 +172,7 @@ class jobScraPy:
     def r_fisher(self, webList, regX, encoding = "cp1252", decoding = "utf-8"):
         return[re.search(regX, w.text.encode(encoding,"ignore").decode(decoding,"ignore").replace(u"\u2013", '-').replace(u"\u00E9", 'e'), re.M).group(1) if w is not None else None for w in webList]
 
+    
     # Uses regex fisher to filter each item from a list
     def p_fisher(self, attrib, jobBoard):
         return [j for j in self.r_fisher(jobBoard[self.board[attrib][0]], self.board[attrib][1]) if j != '']
